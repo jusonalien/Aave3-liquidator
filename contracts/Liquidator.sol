@@ -13,6 +13,10 @@ contract Liquidator is FlashLoanReceiverBase ,Ownable {
 
     constructor() {}
 
+    function makeFlashLoan() public onlyOwner {
+
+    }
+
     function makeLiquationCall(
         address poolAddres,
         address collateralAsset,
