@@ -2,69 +2,78 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {DataTypes} from "./libraries/DataTypes.sol";
+import {IPool} from "./interfaces/IPool.sol";
+import {IPoolAddressesProvider} from "./interfaces/IPoolAddressesProvider.sol";
 
+contract Liquidator is Ownable {
+  IPool public immutable POOL;
 
-import {FlashLoanReceiverBase} from "./FlashLoanReceiverBase.sol";
-import {DataTypes} from "./Libraries.sol";
-import {IPOOL} from "@aave/core-v3/contracts/interfaces/IPool.sol";
+  constructor(address _poolAddress) {
+    POOL = IPool(_poolAddress);
+  }
 
-contract Liquidator is FlashLoanReceiverBase ,Ownable {
-    IPool public immutable POOL;
+  function executeOperation(
+    address[] calldata assets,
+    uint256[] calldata amounts,
+    uint256[] calldata premiums,
+    address initiator,
+    bytes calldata params
+  )
+    external 
+    returns (bool) 
+  {
+     (address collateral, address userToLiquidate, uint256 amountOutMin, address[] memory swapPath) = abi.decode(params, (address, address, uint256, address[]));
+  }
+  function makeFlashLoan(
+    address _assetToLiquidate, 
+    uint256 _flashAmt, 
+    address _collateral, 
+    address _userToLiquidate, 
+    uint256 _amountOutMin, 
+    address[] memory _swapPath
+  ) public onlyOwner {
+    address receiverAddress = address(this);
+    
+    address[] memory assets = new address[](1);
+    assets[0] = _assetToLiquidate;
+    
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = _flashAmt;
 
-    constructor() {}
+    // 0: no open debt. (amount+fee must be paid in this case or revert)
+    // 1: stable mode debt
+    // 2: variable mode debt
+    uint256[] memory modes = new uint256[](1);
+    modes[0] = 0;
 
-    function makeFlashLoan() public onlyOwner {
+    address onBehalfOf = address(this);
 
-    }
+    bytes memory params = abi.encode(_collateral, _userToLiquidate, _amountOutMin, _swapPath);
 
-    function makeLiquationCall(
-        address poolAddres,
-        address collateralAsset,
-        address debtAsset,
-        address user,
-        uint256 debtToCover,
-        bool receiveAToken
-    ) external returns (bool) {
-        (bytes32 arg1, bytes32 arg2) = encodeLiquidationCall(collateralAsset, debtAsset, user, debtToCover, receiveAToken);
-        IPool(poolAddres).liquidationCall(collateralAsset, debtAsset, user, debtToCover, receiveAToken);
-    }
+    uint16 referralCode = 0;
 
+    POOL.flashLoan(
+      receiverAddress, 
+      assets, 
+      amounts, 
+      modes, 
+      onBehalfOf, 
+      params, 
+      referralCode);
+  }
 
-    /**
-    * @notice Encodes liquidation call parameters from standard input to compact representation of 2 bytes32
-    * @param collateralAsset The address of the underlying asset used as collateral, to receive as result of the liquidation
-    * @param debtAsset The address of the underlying borrowed asset to be repaid with the liquidation
-    * @param user The address of the borrower getting liquidated
-    * @param debtToCover The debt amount of borrowed `asset` the liquidator wants to cover
-    * @param receiveAToken True if the liquidators wants to receive the collateral aTokens, `false` if he wants
-    * to receive the underlying collateral asset directly
-    * @return First half ot compact representation of liquidation call parameters
-    * @return Second half ot compact representation of liquidation call parameters
-    */
-    function encodeLiquidationCall(
-        address collateralAsset,
-        address debtAsset,
-        address user,
-        uint256 debtToCover,
-        bool receiveAToken
-    ) external view returns (bytes32, bytes32) {
-        DataTypes.ReserveData memory collateralData = POOL.getReserveData(collateralAsset);
-        uint16 collateralAssetId = collateralData.id;
+  function makeLiquationCall(
+      address poolAddres,
+      address collateralAsset,
+      address debtAsset,
+      address user,
+      uint256 debtToCover,
+      bool receiveAToken
+  ) external returns (bool) {
 
-        DataTypes.ReserveData memory debtData = POOL.getReserveData(debtAsset);
-        uint16 debtAssetId = debtData.id;
+    POOL.liquidationCall(collateralAsset, debtAsset, user, debtToCover, receiveAToken);
+  }
 
-        uint128 shortenedDebtToCover = debtToCover == type(uint256).max
-            ? type(uint128).max
-            : debtToCover.toUint128();
-
-        bytes32 res1;
-        bytes32 res2;
-
-        assembly {
-            res1 := add(add(collateralAssetId, shl(16, debtAssetId)), shl(32, user))
-            res2 := add(shortenedDebtToCover, shl(128, receiveAToken))
-        }
-        return (res1, res2);
-    }
 }

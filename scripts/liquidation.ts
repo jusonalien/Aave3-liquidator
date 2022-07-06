@@ -1,6 +1,7 @@
 import axios from "axios"
 import {calculateHealthFactorFromBalances} from "@aave/math-utils"
 import { BigNumber } from "bignumber.js"
+import {getUserAccountData, UserAccountData} from "./userUtils"
 
 const theGraphURL_v3_polygon = 'https://api.thegraph.com/subgraphs/name/aave/protocol-v3-polygon'
 const healthFactorThreshold = new BigNumber(1); //liquidation can happen when less than 1
@@ -136,9 +137,9 @@ function parsUsers(userData:any[]){
     }
     // loans = loans.filter(loan => loan.maxBorrowedPrincipal * allowedLiquidation * (loan.maxCollateralBonus-1) * loan.maxBorrowedPriceInEth / 10 ** loan.maxBorrowedSymbolDecimals >= profitThreshold)
   });
-  loans.forEach((loan,i) => {
-    console.log(`${i}, ${loan}`)
-    console.log(loan)
+  loans.forEach(async (loan,i) => {
+    const userAccountData:UserAccountData =  await getUserAccountData(loan.userId)
+    console.log(`${i}, ${loan.healthFactor} ${userAccountData.healthFactor}`)
   })
 }
 
