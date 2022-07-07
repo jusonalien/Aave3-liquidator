@@ -33,35 +33,35 @@ contract Liquidator is Ownable {
   }
 
   function addBaseToken(address token) external onlyOwner {
-        _baseTokens.add(token);
-        emit BaseTokenAdded(token);
+    _baseTokens.add(token);
+    emit BaseTokenAdded(token);
+  }
+
+  function removeBaseToken(address token) external onlyOwner {
+    uint256 balance = IERC20(token).balanceOf(address(this));
+    if (balance > 0) {
+      IERC20(token).transfer(owner(), balance);
+    }
+    _baseTokens.remove(token);
+    emit BaseTokenRemoved(token);
+  }
+
+  function withdraw() external {
+    uint256 balance = address(this).balance;
+    if (balance > 0) {
+      payable(owner()).transfer(balance);
+      emit Withdrawn(owner(), balance);
     }
 
-    function removeBaseToken(address token) external onlyOwner {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        if (balance > 0) {
-            IERC20(token).transfer(owner(), balance);
-        }
-        _baseTokens.remove(token);
-        emit BaseTokenRemoved(token);
+    for(uint256 i = 0;i < _baseTokens.length(); i++) {
+      address token = _baseTokens.at(i);
+      balance = IERC20(token).balanceOf(address(this));
+      if (balance > 0) {
+        // do not use safe transfer here to prevents revert by any shitty token
+        IERC20(token).transfer(owner(), balance);
+      }
     }
-
-    function withdraw() external {
-        uint256 balance = address(this).balance;
-        if (balance > 0) {
-            payable(owner()).transfer(balance);
-            emit Withdrawn(owner(), balance);
-        }
-
-        for(uint256 i = 0;i < _baseTokens.length(); i++) {
-            address token = _baseTokens.at(i);
-            balance = IERC20(token).balanceOf(address(this));
-            if (balance > 0) {
-                // do not use safe transfer here to prevents revert by any shitty token
-                IERC20(token).transfer(owner(), balance);
-            }
-        }
-    }
+  }
 
 
   function executeOperation(
@@ -104,7 +104,6 @@ contract Liquidator is Ownable {
   }
 
   function calProfits(uint256 _balance, uint256 _loanAmount, uint256 _loanFee) pure private returns(uint256) {
-    
     return _balance-( _loanAmount + _loanFee);
   }
 
